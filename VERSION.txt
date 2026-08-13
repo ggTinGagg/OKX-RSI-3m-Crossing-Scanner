@@ -1,0 +1,2 @@
+OKX RSI 3m Crossing Scanner v1.0.0
+Independent new project.
