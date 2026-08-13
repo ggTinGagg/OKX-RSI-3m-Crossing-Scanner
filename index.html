@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#090d18">
-<meta name="description" content="OKX RSI 3m Crossing Scanner v1.0.4">
-<title>OKX RSI 3m Crossing Scanner v1.0.4</title>
+<meta name="description" content="OKX RSI 3m Crossing Scanner v1.0.6">
+<title>OKX RSI 3m Crossing Scanner v1.0.6</title>
 <style>
 :root{color-scheme:dark;--b:#070b13;--p:#101827;--l:#26344e;--t:#f4f7fb;--m:#94a3b8;--g:#38d996;--r:#ff647c;--a:#ffc857;--u:#61a7ff}
 *{box-sizing:border-box}
@@ -53,10 +53,10 @@ footer{text-align:center;color:var(--m);font-size:11px;margin-top:14px}
 <div class="w">
   <div class="head">
     <div>
-      <h1>OKX RSI 3m Crossing Scanner v1.0.4</h1>
+      <h1>OKX RSI 3m Crossing Scanner v1.0.6</h1>
       <div class="muted">Top 50 USDT perpetual • RSI Wilder 14 • 3 phút • Chỉ hiển thị tín hiệu vừa vượt ngưỡng</div>
     </div>
-    <div class="badge">● Đang hoạt động</div>
+    <div class="badge">● Đang hoạt động • ≤ 30×</div>
   </div>
 
   <div class="grid">
@@ -130,12 +130,12 @@ footer{text-align:center;color:var(--m);font-size:11px;margin-top:14px}
 
   <footer>
     Đòn bẩy = ceil(10 / thân nến (%) lớn nhất) trong 10 nến 3 phút hoàn tất, gồm 9 nến trước + chính nến tín hiệu.
-    Thân nến (%) = |Close − Open| / Open × 100. Chốt lời (%) = 1/4 bước giá (%). Râu nến không được tính. Không phải khuyến nghị đầu tư.
+    Thân nến (%) = |Close − Open| / Open × 100. Chốt lời (%) = 1/4 bước giá (%). Râu nến không được tính. Chỉ giữ tín hiệu có đòn bẩy ≤ 30×; tín hiệu > 30× bị bỏ qua. Không phải khuyến nghị đầu tư.
   </footer>
 </div>
 
 <script>
-const API='https://www.okx.com/api/v5',TOP=50,$=s=>document.querySelector(s);
+const API='https://www.okx.com/api/v5',TOP=50,MAX_LEVERAGE=30,$=s=>document.querySelector(s);
 let data=[],filter='over',scanning=false,state=JSON.parse(localStorage.getItem('v5state')||'{}');
 let scannedCount=0, failedCount=0;
 
@@ -165,7 +165,14 @@ async function fetchTopContracts(){
   const tickers=await get(API+'/market/tickers?instType=SWAP');
   return tickers
     .filter(x=>x.instId.endsWith('-USDT-SWAP')&&Number.isFinite(+x.last)&&+x.last>0)
-    .map(x=>({...x,v:+(x.volCcy24h||0)}))
+    .map(x=>{
+      // OKX reports volCcy24h for derivatives in the base currency.
+      // For USDT perpetuals, convert it to an approximate 24h traded value in USDT.
+      const volBase=+(x.volCcy24h||0);
+      const last=+x.last;
+      const turnoverUSDT=volBase*last;
+      return {...x,v:turnoverUSDT,volBase24h:volBase};
+    })
     .filter(x=>Number.isFinite(x.v)&&x.v>0)
     .sort((a,b)=>b.v-a.v)
     .slice(0,TOP);
@@ -210,6 +217,8 @@ async function one(t){
   if(!type)return null;
 
   const calc=calcLeverage(c);
+  // Chỉ giữ tín hiệu có đòn bẩy từ 30x trở xuống. Tín hiệu >30x bị bỏ qua hoàn toàn.
+  if(calc.leverage==null || calc.leverage>MAX_LEVERAGE)return null;
   return {...t,rsi:cur.cur,prev:prevObj.cur,delta:cur.cur-prevObj.cur,
     leverage:calc.leverage,maxBodyPct:calc.maxBodyPct,
     signalTs:c[c.length-1][0],type};
@@ -400,6 +409,8 @@ function schedule(){
   const n=new Date(),x=new Date(n);
   x.setSeconds(0,0);
   x.setMinutes(Math.floor(n.getMinutes()/3)*3+3);
+  // Quét đúng 5 giây sau khi nến 3 phút đóng để OKX có thời gian hoàn tất dữ liệu nến.
+  x.setSeconds(5,0);
   setTimeout(async()=>{await scan();schedule()},Math.max(500,x-n));
 }
 
@@ -419,7 +430,7 @@ $('#enable').onclick=async()=>{
 $('#test').onclick=async()=>{
   if(Notification.permission!=='granted')await $('#enable').onclick();
   if(Notification.permission==='granted'){
-    await notify('OKX RSI 3m Crossing Scanner v1.0.4','Thông báo đang hoạt động bình thường.');
+    await notify('OKX RSI 3m Crossing Scanner v1.0.6','Thông báo đang hoạt động bình thường.');
     tone($('#sound').value);vib($('#vibrate').value);
   }
 };
