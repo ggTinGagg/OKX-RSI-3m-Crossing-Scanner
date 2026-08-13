@@ -1,4 +1,4 @@
-# OKX RSI 3m Crossing Scanner v1.0.3
+# OKX RSI 3m Crossing Scanner v1.0.4
 
 Bản sửa lỗi cho dự án OKX RSI 3m Crossing Scanner.
 
@@ -12,6 +12,13 @@ Bản sửa lỗi cho dự án OKX RSI 3m Crossing Scanner.
 - Bản này cũng sửa bộ đếm nến từ 15 phút thành 3 phút và bỏ phụ thuộc vào các file asset không có trong gói.
 
 
-## v1.0.3
+## v1.0.4
 - Giữ nguyên logic và dữ liệu quét của v1.0.1.
 - Chỉ chỉnh tên 5 cột thành: COIN, Đòn bẩy, RSI, Delta RSI, Trạng thái.
+
+
+## v1.0.4
+- Khôi phục thông báo trình duyệt bằng Service Worker.
+- Không còn chờ vô hạn ở `serviceWorker.ready` khi chưa đăng ký Service Worker.
+- Lịch sử cảnh báo được lưu trước khi gửi notification nên vẫn hoạt động kể cả khi trình duyệt chặn notification.
+- Giữ nguyên logic quét RSI 3m crossing và 5 cột: COIN, Đòn bẩy, RSI, Delta RSI, Trạng thái.

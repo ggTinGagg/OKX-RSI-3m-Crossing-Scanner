@@ -1,1 +1,1 @@
-OKX RSI 3m Crossing Scanner v1.0.3
+OKX RSI 3m Crossing Scanner v1.0.4

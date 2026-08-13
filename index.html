@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#090d18">
-<meta name="description" content="OKX RSI 3m Crossing Scanner v1.0.3">
-<title>OKX RSI 3m Crossing Scanner v1.0.3</title>
+<meta name="description" content="OKX RSI 3m Crossing Scanner v1.0.4">
+<title>OKX RSI 3m Crossing Scanner v1.0.4</title>
 <style>
 :root{color-scheme:dark;--b:#070b13;--p:#101827;--l:#26344e;--t:#f4f7fb;--m:#94a3b8;--g:#38d996;--r:#ff647c;--a:#ffc857;--u:#61a7ff}
 *{box-sizing:border-box}
@@ -53,7 +53,7 @@ footer{text-align:center;color:var(--m);font-size:11px;margin-top:14px}
 <div class="w">
   <div class="head">
     <div>
-      <h1>OKX RSI 3m Crossing Scanner v1.0.3</h1>
+      <h1>OKX RSI 3m Crossing Scanner v1.0.4</h1>
       <div class="muted">Top 50 USDT perpetual • RSI Wilder 14 • 3 phút • Chỉ hiển thị tín hiệu vừa vượt ngưỡng</div>
     </div>
     <div class="badge">● Đang hoạt động</div>
@@ -297,11 +297,21 @@ function vib(m){
 }
 
 async function notify(title,body){
-  if(!('Notification'in window)||Notification.permission!=='granted')return;
-  let reg=null;
-  try{ reg=await navigator.serviceWorker?.ready; }catch(e){}
-  reg?reg.showNotification(title,{body,tag:'okx-rsi',renotify:true}):
-      new Notification(title,{body});
+  if(!('Notification' in window) || Notification.permission!=='granted') return false;
+  try{
+    if('serviceWorker' in navigator){
+      const reg=await navigator.serviceWorker.getRegistration();
+      if(reg && reg.showNotification){
+        await reg.showNotification(title,{body,tag:'okx-rsi',renotify:true,icon:'icon.svg',badge:'icon.svg'});
+        return true;
+      }
+    }
+    new Notification(title,{body,icon:'icon.svg'});
+    return true;
+  }catch(e){
+    console.warn('Notification error:',e);
+    try{ new Notification(title,{body}); return true; }catch(_){ return false; }
+  }
 }
 
 function history(a){
@@ -341,8 +351,9 @@ async function alerts(){
   const parts=[];
   if(o.length)parts.push('Quá mua: '+o.map(x=>sym(x.instId)+' RSI '+x.rsi.toFixed(1)).join(', '));
   if(u.length)parts.push('Quá bán: '+u.map(x=>sym(x.instId)+' RSI '+x.rsi.toFixed(1)).join(', '));
+  history(fresh);
   await notify('OKX RSI 3m — '+fresh.length+' tín hiệu mới',parts.join(' • '));
-  tone($('#sound').value);vib($('#vibrate').value);history(fresh);
+  tone($('#sound').value);vib($('#vibrate').value);
 }
 
 async function scan(){
@@ -408,7 +419,7 @@ $('#enable').onclick=async()=>{
 $('#test').onclick=async()=>{
   if(Notification.permission!=='granted')await $('#enable').onclick();
   if(Notification.permission==='granted'){
-    await notify('OKX RSI 3m Crossing Scanner v1.0.3','Thông báo đang hoạt động bình thường.');
+    await notify('OKX RSI 3m Crossing Scanner v1.0.4','Thông báo đang hoạt động bình thường.');
     tone($('#sound').value);vib($('#vibrate').value);
   }
 };
@@ -419,6 +430,11 @@ $('#under').onchange=render;
 
 if('Notification'in window&&Notification.permission==='granted')$('#enable').textContent='✅ Đã bật thông báo';
 
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./service-worker.js',{scope:'./'})
+    .then(()=>console.log('OKX RSI: service worker registered'))
+    .catch(e=>console.warn('OKX RSI: service worker registration failed',e));
+}
 renderHist();
 clock();
 setInterval(clock,1000);
