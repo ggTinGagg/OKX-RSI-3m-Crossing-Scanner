@@ -4,10 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#090d18">
-<meta name="description" content="OKX RSI 3m Crossing Scanner v1.0.0">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon.svg">
-<title>OKX RSI 3m Crossing Scanner v1.0.0</title>
+<meta name="description" content="OKX RSI 3m Crossing Scanner v1.0.3">
+<title>OKX RSI 3m Crossing Scanner v1.0.3</title>
 <style>
 :root{color-scheme:dark;--b:#070b13;--p:#101827;--l:#26344e;--t:#f4f7fb;--m:#94a3b8;--g:#38d996;--r:#ff647c;--a:#ffc857;--u:#61a7ff}
 *{box-sizing:border-box}
@@ -55,7 +53,7 @@ footer{text-align:center;color:var(--m);font-size:11px;margin-top:14px}
 <div class="w">
   <div class="head">
     <div>
-      <h1>OKX RSI 3m Crossing Scanner v1.0.0</h1>
+      <h1>OKX RSI 3m Crossing Scanner v1.0.3</h1>
       <div class="muted">Top 50 USDT perpetual • RSI Wilder 14 • 3 phút • Chỉ hiển thị tín hiệu vừa vượt ngưỡng</div>
     </div>
     <div class="badge">● Đang hoạt động</div>
@@ -86,7 +84,7 @@ footer{text-align:center;color:var(--m);font-size:11px;margin-top:14px}
           <label><span>Ngưỡng quá bán</span><input id="under" type="number" value="30"></label>
         </div>
         <button id="refresh" class="primary">↻ Quét ngay</button>
-        <div class="muted">Quét ngay khi nến 3 phút vừa đóng và quét bổ sung mỗi 1 phút khi trang đang mở.</div>
+        <div class="muted">Quét ngay khi nến 3 phút vừa đóng và quét bổ sung mỗi 1 phút khi trang đang mở. Chỉ hiển thị coin vừa crossing RSI.</div>
       </div>
     </section>
   </div>
@@ -99,7 +97,7 @@ footer{text-align:center;color:var(--m);font-size:11px;margin-top:14px}
   <div class="tabs">
     <button class="active" data-f="over">RSI &gt; ngưỡng</button>
     <button data-f="under">RSI &lt; ngưỡng</button>
-    <button data-f="all">Tất cả 50 coin</button>
+    <button data-f="all">Tất cả tín hiệu</button>
   </div>
 
   <section class="card table">
@@ -111,12 +109,11 @@ footer{text-align:center;color:var(--m);font-size:11px;margin-top:14px}
       <table>
         <thead>
           <tr>
-            <th>Coin</th>
-            <th>RSI</th>
-            <th>Δ RSI</th>
+            <th>COIN</th>
             <th>Đòn bẩy</th>
-            <th>Tín hiệu</th>
-            <th>Tín hiệu</th>
+            <th>RSI</th>
+            <th>Delta RSI</th>
+            <th>Trạng thái</th>
           </tr>
         </thead>
         <tbody id="rows">
@@ -132,7 +129,7 @@ footer{text-align:center;color:var(--m);font-size:11px;margin-top:14px}
   </section>
 
   <footer>
-    Đòn leverage = ceil(10 / thân nến (%) lớn nhất) trong 10 nến 3 phút hoàn tất, gồm 9 nến trước + chính nến tín hiệu.
+    Đòn bẩy = ceil(10 / thân nến (%) lớn nhất) trong 10 nến 3 phút hoàn tất, gồm 9 nến trước + chính nến tín hiệu.
     Thân nến (%) = |Close − Open| / Open × 100. Chốt lời (%) = 1/4 bước giá (%). Râu nến không được tính. Không phải khuyến nghị đầu tư.
   </footer>
 </div>
@@ -140,6 +137,7 @@ footer{text-align:center;color:var(--m);font-size:11px;margin-top:14px}
 <script>
 const API='https://www.okx.com/api/v5',TOP=50,$=s=>document.querySelector(s);
 let data=[],filter='over',scanning=false,state=JSON.parse(localStorage.getItem('v5state')||'{}');
+let scannedCount=0, failedCount=0;
 
 function rsi(c,p=14){
   if(c.length<p+1)return null;
@@ -164,10 +162,13 @@ async function get(url){
 }
 
 async function fetchTopContracts(){
-  return(await get(API+'/market/tickers?instType=SWAP'))
-    .filter(x=>x.instId.endsWith('-USDT-SWAP')&&+x.last>0)
-    .map(x=>({...x,v:+x.last*+(x.volCcy24h||0)}))
-    .sort((a,b)=>b.v-a.v).slice(0,TOP);
+  const tickers=await get(API+'/market/tickers?instType=SWAP');
+  return tickers
+    .filter(x=>x.instId.endsWith('-USDT-SWAP')&&Number.isFinite(+x.last)&&+x.last>0)
+    .map(x=>({...x,v:+(x.volCcy24h||0)}))
+    .filter(x=>Number.isFinite(x.v)&&x.v>0)
+    .sort((a,b)=>b.v-a.v)
+    .slice(0,TOP);
 }
 
 function calcLeverage(candles){
@@ -215,16 +216,25 @@ async function one(t){
 }
 
 async function batches(a){
-  let o=[];
+  let o=[], ok=0, failed=0;
   for(let i=0;i<a.length;i+=6){
     let s=await Promise.allSettled(a.slice(i,i+6).map(one));
-    s.forEach(x=>{if(x.status==='fulfilled'&&x.value)o.push(x.value)});
+    s.forEach(x=>{
+      if(x.status==='fulfilled'){
+        ok++;
+        if(x.value)o.push(x.value);
+      }else{
+        failed++;
+        console.warn('OKX candle error:',x.reason);
+      }
+    });
     $('#status').textContent='Đang quét '+Math.min(i+6,a.length)+'/'+a.length+' coin…';
     await new Promise(r=>setTimeout(r,400));
   }
+  scannedCount=ok;
+  failedCount=failed;
   return o;
 }
-
 function th(){return{over:+$('#over').value||70,under:+$('#under').value||30}}
 function sym(id){return id.replace('-USDT-SWAP','USDT.P').replaceAll('-','')}
 function price(n){
@@ -253,7 +263,7 @@ function render(){
   r.sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
   $('#overN').textContent=data.filter(x=>x.type==='over').length;
   $('#underN').textContent=data.filter(x=>x.type==='under').length;
-  $('#doneN').textContent=data.length;
+  $('#doneN').textContent=scannedCount||'–';
   $('#title').textContent=filter==='over'?'RSI vừa vượt quá mua':
     filter==='under'?'RSI vừa vượt quá bán':'Tín hiệu RSI vừa vượt ngưỡng';
   $('#rows').innerHTML=r.length?r.map(x=>{
@@ -270,7 +280,6 @@ function render(){
     </tr>`;
   }).join(''):'<tr><td colspan="5" class="empty">Chưa có coin nào vừa vượt ngưỡng.</td></tr>';
 }
-
 function tone(m){
   if(m==='off')return;
   let C=window.AudioContext||window.webkitAudioContext;if(!C)return;
@@ -289,9 +298,10 @@ function vib(m){
 
 async function notify(title,body){
   if(!('Notification'in window)||Notification.permission!=='granted')return;
-  let reg=await navigator.serviceWorker?.ready.catch(()=>null);
-  reg?reg.showNotification(title,{body,icon:'icon.svg',tag:'okx-rsi',renotify:true}):
-      new Notification(title,{body,icon:'icon.svg'});
+  let reg=null;
+  try{ reg=await navigator.serviceWorker?.ready; }catch(e){}
+  reg?reg.showNotification(title,{body,tag:'okx-rsi',renotify:true}):
+      new Notification(title,{body});
 }
 
 function history(a){
@@ -338,25 +348,38 @@ async function alerts(){
 async function scan(){
   if(scanning)return;
   scanning=true;$('#refresh').disabled=true;$('#error').style.display='none';
+  scannedCount=0;failedCount=0;
   try{
-    $('#status').textContent='Đang lấy danh sách hợp đồng…';
-    data=await batches(await fetchTopContracts());
+    $('#status').textContent='Đang lấy Top 50 hợp đồng USDT perpetual…';
+    const contracts=await fetchTopContracts();
+    if(!contracts.length)throw Error('OKX không trả về danh sách hợp đồng.');
+    data=await batches(contracts);
     render();await alerts();
     $('#updated').textContent='Cập nhật '+new Date().toLocaleTimeString('vi-VN');
-    $('#status').textContent='Đã kết nối OKX • Hoàn tất '+data.length+'/50 coin • RSI 3m';
+
+    if(failedCount>0){
+      $('#error').style.display='block';
+      $('#error').textContent='Đã quét '+scannedCount+'/'+contracts.length+
+        ' coin; '+failedCount+' coin lỗi khi lấy nến. Các coin lỗi sẽ được thử lại ở lần quét tiếp theo.';
+    }
+
+    $('#status').textContent='Đã kết nối OKX • Đã quét '+scannedCount+'/'+contracts.length+
+      ' coin • Có '+data.length+' tín hiệu RSI 3m mới';
   }catch(e){
     $('#error').style.display='block';
     $('#error').textContent='Không lấy được dữ liệu OKX: '+e.message;
-    $('#status').textContent='Quét thất bại';
+    $('#status').textContent='Quét thất bại — hãy mở F12 → Console để xem lỗi chi tiết.';
+    scannedCount=0;
+    data=[];
+    render();
   }finally{
     $('#refresh').disabled=false;scanning=false;
   }
 }
-
 function clock(){
   let n=new Date(),x=new Date(n);
   x.setSeconds(0,0);
-  x.setMinutes(Math.floor(n.getMinutes()/15)*15+15);
+  x.setMinutes(Math.floor(n.getMinutes()/3)*3+3);
   let s=Math.max(0,Math.floor((x-n)/1000));
   $('#countdown').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
   $('#next').textContent='Nến đóng lúc '+x.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
@@ -385,7 +408,7 @@ $('#enable').onclick=async()=>{
 $('#test').onclick=async()=>{
   if(Notification.permission!=='granted')await $('#enable').onclick();
   if(Notification.permission==='granted'){
-    await notify('OKX RSI 3m Crossing Scanner v1.0.0','Thông báo đang hoạt động bình thường.');
+    await notify('OKX RSI 3m Crossing Scanner v1.0.3','Thông báo đang hoạt động bình thường.');
     tone($('#sound').value);vib($('#vibrate').value);
   }
 };
@@ -394,7 +417,6 @@ $('#clear').onclick=()=>{localStorage.removeItem('v5hist');renderHist()};
 $('#over').onchange=render;
 $('#under').onchange=render;
 
-if('serviceWorker'in navigator)navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
 if('Notification'in window&&Notification.permission==='granted')$('#enable').textContent='✅ Đã bật thông báo';
 
 renderHist();

@@ -1,37 +1,17 @@
-# OKX RSI 3m Crossing Scanner v1.0.0
+# OKX RSI 3m Crossing Scanner v1.0.3
 
-Dự án mới, độc lập với dự án OKX RSI Scanner cũ.
+Bản sửa lỗi cho dự án OKX RSI 3m Crossing Scanner.
 
-## Chức năng
+- Top 50 USDT perpetual theo `volCcy24h` của OKX.
+- RSI Wilder 14 trên nến 3 phút đã đóng.
+- Chỉ hiển thị coin vừa crossing RSI 70/30.
+- Quét lại mỗi 1 phút khi trang đang mở.
+- Tính đòn bẩy = ceil(10 / thân nến (%) lớn nhất) trong 10 nến 3 phút hoàn tất, gồm cả nến tín hiệu.
+- Thân nến (%) = |Close - Open| / Open × 100; không tính râu.
+- Bản này sửa lỗi hiển thị `0/50` khi thực tế đã quét đủ 50 coin nhưng không có tín hiệu.
+- Bản này cũng sửa bộ đếm nến từ 15 phút thành 3 phút và bỏ phụ thuộc vào các file asset không có trong gói.
 
-- Quét 50 USDT perpetual có khối lượng giao dịch lớn nhất trên OKX.
-- RSI Wilder 14 trên khung 3 phút.
-- Chỉ hiển thị coin khi RSI vừa vượt ngưỡng:
-  - Quá mua: RSI nến trước <= 70 và RSI nến tín hiệu > 70.
-  - Quá bán: RSI nến trước >= 30 và RSI nến tín hiệu < 30.
-- Không hiển thị các coin đã nằm ngoài ngưỡng từ trước.
-- Quét ngay khi nến 3 phút vừa đóng.
-- Có quét bổ sung mỗi 1 phút khi trang đang mở.
-- Đòn bẩy:
-  - Lấy 10 nến 3 phút hoàn tất gần nhất, gồm 9 nến trước + nến tín hiệu.
-  - Body % = |Close - Open| / Open × 100.
-  - Lấy body % lớn nhất.
-  - Leverage = ceil(10 / body % lớn nhất).
-  - Bỏ qua râu nến.
-- Các cột:
-  1. Coin
-  2. Đòn bẩy
-  3. RSI
-  4. Δ RSI
-  5. Tín hiệu
 
-## Cài trên GitHub Pages
-
-1. Tạo một repository GitHub mới.
-2. Upload `index.html`.
-3. Vào Settings → Pages.
-4. Chọn Deploy from a branch.
-5. Chọn branch `main` và thư mục `/ (root)`.
-6. Lưu lại và chờ GitHub Pages triển khai.
-
-Dự án này không yêu cầu xóa hoặc sửa repository của dự án cũ.
+## v1.0.3
+- Giữ nguyên logic và dữ liệu quét của v1.0.1.
+- Chỉ chỉnh tên 5 cột thành: COIN, Đòn bẩy, RSI, Delta RSI, Trạng thái.
